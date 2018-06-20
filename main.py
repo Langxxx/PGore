@@ -1,5 +1,6 @@
 from xml.etree.ElementTree import parse
 from jinja2 import Environment as JinjaEnvironment, FileSystemLoader
+from abc import abstractclassmethod
 
 all_entity = []
 
@@ -34,18 +35,32 @@ def camel_to_snake(camel_format):
     return snake_format
 
 
-class UserInfo:
+class BaseInfo:
     def __init__(self, attribute):
         self.user_info = {}
+        self.name = attribute.attrib['name']
+        self.is_optional = attribute.attrib.get('optional', False)
         if attribute and attribute[0].tag == 'userInfo':
             self.user_info = [entry.attrib for entry in attribute[0]]
 
+    @abstractclassmethod
+    def json_key(self):
+        pass
 
-class Attribute(UserInfo):
+    @LazyProperty
+    def json_expression(self):
+        if self.is_key_path:
+            return "(json as AnyObject).value(forKeyPath: \"{json_key}\")".format(json_key=self.json_key)
+        return "json[\"{json_key}\"]".format(json_key=self.json_key)
+
+    @LazyProperty
+    def is_key_path(self):
+        return '.' in self.json_key
+
+
+class Attribute(BaseInfo):
     def __init__(self, attribute):
         super(Attribute, self).__init__(attribute)
-        self.name = attribute.attrib['name']
-        self.is_optional = attribute.attrib.get('optional', False)
         self.type = attribute.attrib['attributeType'].replace('Integer ', 'Int')
         self.type = self.type if self.type != 'Boolean' else 'Bool'
         self.default_value = attribute.attrib.get('defaultValueString')
@@ -74,12 +89,6 @@ class Attribute(UserInfo):
     def json_value_expression_for_check_null(self):
         return self._json_value_expression()
 
-    @LazyProperty
-    def json_expression(self):
-        if self.is_key_path:
-            return "(json as AnyObject).value(forKeyPath: \"{json_key}\")".format(json_key=self.json_key)
-        return "json[\"{json_key}\"]".format(json_key=self.json_key)
-
     def _json_value_expression(self):
         for entry in self.user_info:
             if entry['key'] == 'json_transformer' and entry['value']:
@@ -89,10 +98,6 @@ class Attribute(UserInfo):
                 .format(json_exp=self.json_expression,type=self.type.lower())
         else:
             return "{json_exp} as? {type}".format(json_exp=self.json_expression, type=self.type)
-
-    @LazyProperty
-    def is_key_path(self):
-        return '.' in self.json_key
 
     @LazyProperty
     def json_ignore(self):
@@ -113,7 +118,7 @@ class Attribute(UserInfo):
                 return '!'
         return '?'
 
-    @property
+    @LazyProperty
     def json_key(self):
         json_key = camel_to_snake(self.name)
         for entry in self.user_info:
@@ -122,11 +127,9 @@ class Attribute(UserInfo):
         return json_key
 
 
-class Relationship(UserInfo):
+class Relationship(BaseInfo):
     def __init__(self, relationship):
         super(Relationship, self).__init__(relationship)
-        self.name = relationship.attrib['name']
-        self.is_optional = relationship.attrib.get('optional', False)
         self.to_many = relationship.attrib.get('toMany', False)
         self.ordered = relationship.attrib.get('ordered', False)
         self.destination_entity = relationship.attrib.get('destinationEntity')
@@ -140,7 +143,7 @@ class Relationship(UserInfo):
                 userInfo: {user_info}
         """.format(name=self.name, optional=self.is_optional, to_many=self.to_many, ordered=self.ordered, user_info=self.user_info)
 
-    @property
+    @LazyProperty
     def json_key(self):
         for entry in self.user_info:
             if entry.get('key') == 'json_key':
@@ -156,7 +159,7 @@ class Relationship(UserInfo):
             return "json[\"{k}\"] as? JSONResponse".format(k=json_key)
         return None
 
-    @property
+    @LazyProperty
     def optional(self):
         if not self.is_optional:
             return ''
