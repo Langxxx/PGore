@@ -1,3 +1,6 @@
+import getopt
+import os
+import sys
 from xml.etree.ElementTree import parse
 from jinja2 import Environment as JinjaEnvironment, FileSystemLoader
 from abc import abstractclassmethod
@@ -220,18 +223,54 @@ class Entity:
             return copy
         return self.relationships
 
-def parse_model():
-    doc = parse('/Users/didi/Desktop/bearychat_2/MandrakeCore/Sources/Database/Team.xcdatamodeld/Team.xcdatamodel/contents')
+
+def parse_model(input):
+    doc = parse(input)
     root = doc.getroot()
     entities = [Entity(entity) for entity in root if entity.tag == 'entity']
     return entities
 
 
+def parse_args():
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], 'hi:o:t:', ['input=', 'output=', 'tmpl='])
+    except getopt.GetoptError:
+        print('Error: -i <inputfile> -o [outputfile]')
+        print('or: -input <inputfile> -output [outputfile]')
+        exit()
+
+    template = 'tmpl'
+    output_path = ''
+    input_file = ''
+
+    for opt, arg in opts:
+        if opt == "-h":
+            print('-i <inputfile> -o [outputfile] -t [template]')
+            print('or: -input <inputfile> --output [outputfile] --tmpl [template]')
+            exit()
+        elif opt in ('-i', '--input'):
+            input_file = arg
+        elif opt in ('-o', '--output'):
+            output_path = arg
+        elif opt in ('-t', '--template'):
+            template = arg
+
+    if input_file and not output_path:
+        output_path = os.path.dirname(input_file)
+
+    if not input_file or not output_path:
+        print('miss input file: -i <inputfile> or: -input <inputfile>')
+        print('')
+
+    return (input_file, output_path, template)
+
+
 if __name__ == '__main__':
-    all_entity = parse_model()
+    input_file, output_path, template = parse_args()
+    
+    all_entity = parse_model(input_file)
     for entity in all_entity:
-        path = '/Users/didi/Desktop/bearychat_2/MandrakeCore/Sources/Database/Generated/Team/'
-        output_name = path + entity.name + '+CoreDataProperties.swift'
+        output_name = output_path + entity.name + '+CoreDataProperties.swift'
         with open(output_name, 'wt') as f2:
             env = JinjaEnvironment(line_statement_prefix="#", loader=FileSystemLoader(
                 searchpath=['./tmpl']
@@ -239,5 +278,6 @@ if __name__ == '__main__':
             tmpl = env.get_template('entity_extension.tmpl')
             text = tmpl.render(entity=entity)
             f2.write(text)
+            print('generated ' + output_name)
 
 
