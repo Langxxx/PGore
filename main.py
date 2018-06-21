@@ -273,7 +273,7 @@ if __name__ == '__main__':
         output_name = output_path + entity.name + '+CoreDataProperties.swift'
         with open(output_name, 'wt') as f2:
             env = JinjaEnvironment(line_statement_prefix="#", loader=FileSystemLoader(
-                searchpath=['./tmpl']
+                searchpath=['./tmpl', template]
             ))
             tmpl = env.get_template('entity_extension.tmpl')
             text = tmpl.render(entity=entity)
