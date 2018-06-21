@@ -1,9 +1,10 @@
 import getopt
 import os
 import sys
-from xml.etree.ElementTree import parse
-from jinja2 import Environment as JinjaEnvironment, FileSystemLoader
 from abc import abstractclassmethod
+from xml.etree.ElementTree import parse
+
+from jinja2 import Environment as JinjaEnvironment, FileSystemLoader
 
 all_entity = []
 
@@ -38,8 +39,17 @@ def camel_to_snake(camel_format):
     return snake_format
 
 
-class BaseInfo:
+class UserInfo:
     def __init__(self, attribute):
+        self.user_info = {}
+        user_info = attribute.find('userInfo')
+        if user_info:
+            self.user_info = [entry.attrib for entry in user_info]
+
+
+class BaseInfo(UserInfo):
+    def __init__(self, attribute):
+        super(BaseInfo, self).__init__(attribute)
         self.user_info = {}
         self.name = attribute.attrib['name']
         self.is_optional = attribute.attrib.get('optional', False)
@@ -157,9 +167,9 @@ class Relationship(BaseInfo):
     def json_value_expression(self):
         json_key = self.json_key
         if json_key and self.to_many:
-            return "json[\"{k}\"] as? [JSONResponse]".format(k=json_key)
+            return "{json_exp} as? [JSONResponse]".format(json_exp=self.json_expression)
         elif json_key:
-            return "json[\"{k}\"] as? JSONResponse".format(k=json_key)
+            return "{json_exp} as? JSONResponse".format(json_exp=self.json_expression)
         return None
 
     @LazyProperty
@@ -172,8 +182,9 @@ class Relationship(BaseInfo):
         return '?'
 
 
-class Entity:
+class Entity(UserInfo):
     def __init__(self, entity):
+        super(Entity, self).__init__(entity)
         self.name = entity.attrib['name']
         self.attributes = [Attribute(_attr) for _attr in entity if _attr.tag == 'attribute']
         self.relationships = [Relationship(_attr) for _attr in entity if _attr.tag == 'relationship']
@@ -181,6 +192,10 @@ class Entity:
         current_uniq_constraints = entity.find('uniquenessConstraints')
         if current_uniq_constraints:
             self.current_uniq_constraints = current_uniq_constraints[0][0].get('value')
+        if not current_uniq_constraints:
+            for entry in self.user_info:
+                if entry['key'] == 'fake_constraint' and entry['value']:
+                    self.current_uniq_constraints = entry['value']
 
     def __str__(self):
         return """
@@ -273,9 +288,9 @@ if __name__ == '__main__':
         output_name = output_path + entity.name + '+CoreDataProperties.swift'
         with open(output_name, 'wt') as f2:
             env = JinjaEnvironment(line_statement_prefix="#", loader=FileSystemLoader(
-                searchpath=['./tmpl', template]
+                searchpath=['./']
             ))
-            tmpl = env.get_template('entity_extension.tmpl')
+            tmpl = env.get_template(template)
             text = tmpl.render(entity=entity)
             f2.write(text)
             print('generated ' + output_name)

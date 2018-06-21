@@ -53,7 +53,7 @@ extension {{ entity.name }} {
     # endfor
 }
 
-#if entity.current_uniq_constraints
+#if entity.current_uniq_constraints and not entity.parent_entity_obj.uniq_constraints_with_parent
 extension {{ entity.name }} {
     public class func fetchOrCreate({{ entity.current_uniq_constraints }}: String, in context: NSManagedObjectContext) -> Self {
         var create: Bool = false
@@ -156,7 +156,7 @@ extension {{ entity.name }} {
                     # if relationship.is_optional
         let {{ relationship.name }} = {{ relationship.destination_entity }}.updateOrCreate(from: {{ relationship.json_value_expression }}, in: context)
                     # else
-        guard let {{ relationship.name }} = {{ relationship.destination_entity }}.updateOrCreate(from: {{ relationship.destination_entity }}, in: context) else {
+        guard let {{ relationship.name }} = {{ relationship.destination_entity }}.updateOrCreate(from: {{ relationship.json_value_expression }}, in: context) else {
             log.warning("missing '{{ relationship.json_key }}'")
             return nil
         }
