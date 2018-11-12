@@ -84,6 +84,10 @@ class Attribute(BaseInfo):
             self.type = 'Data'
         elif self.type == 'String' and self.default_value:
             self.default_value = "\"{value}\"".format(value=self.default_value)
+        elif self.type == 'Transformable':
+            self.type = self.custom_class_name
+            if self.default_value:
+                self.default_value = "\"{value}\"".format(value=self.default_value) if self.type == 'String' else self.default_value
 
     def __str__(self):
         return """
@@ -121,6 +125,13 @@ class Attribute(BaseInfo):
                 if entry['key'] == 'json_ignore' and entry['value']:
                     return True
         return False
+
+    @LazyProperty
+    def custom_class_name(self):
+        for entry in self.user_info:
+            if entry['key'] == 'objec_name' and entry['value']:
+                return entry['value']
+        return None
 
     @property
     def optional(self):
@@ -282,7 +293,7 @@ def parse_args():
 
 if __name__ == '__main__':
     input_file, output_path, template = parse_args()
-    
+
     all_entity = parse_model(input_file)
     for entity in all_entity:
         output_name = output_path + entity.name + '+CoreDataProperties.swift'
