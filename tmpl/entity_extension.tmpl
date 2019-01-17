@@ -55,27 +55,33 @@ extension {{ entity.name }} {
 
 #if entity.current_uniq_constraints and not entity.parent_entity_obj.uniq_constraints_with_parent
 extension {{ entity.name }} {
-    public class func fetchOrCreate({{ entity.current_uniq_constraints }}: String, in context: NSManagedObjectContext) -> Self {
+    public class func fetchOrCreate({{ entity.constraint_parameter }}, in context: NSManagedObjectContext) -> Self {
         var create: Bool = false
-        return _fetchOrCreate({{ entity.current_uniq_constraints }}: {{ entity.current_uniq_constraints }}, create: &create, in: context)
+        return _fetchOrCreate({{ entity.post_constraint_parameter }}, create: &create, in: context)
     }
 
-    public class func fetchOrCreate({{ entity.current_uniq_constraints }}: String, create: inout Bool, in context: NSManagedObjectContext) -> Self {
-        return _fetchOrCreate({{ entity.current_uniq_constraints }}: {{ entity.current_uniq_constraints }}, create: &create, in: context)
+    public class func fetchOrCreate({{ entity.constraint_parameter }}, create: inout Bool, in context: NSManagedObjectContext) -> Self {
+        return _fetchOrCreate({{ entity.post_constraint_parameter }}, create: &create, in: context)
     }
 
-    public class func fetch({{ entity.current_uniq_constraints }}: String, in context: NSManagedObjectContext) -> Self? {
-        return _fetch({{ entity.current_uniq_constraints }}: {{ entity.current_uniq_constraints }}, in: context)
+    public class func fetch({{ entity.constraint_parameter }}, in context: NSManagedObjectContext) -> Self? {
+        return _fetch({{ entity.post_constraint_parameter }}, in: context)
     }
 
-    private class func _fetch<T: {{ entity.name }}>({{ entity.current_uniq_constraints }}: String, in context: NSManagedObjectContext) -> T? {
-        return T.findOrFetch(in: context, predicate: Query.equal("{{ entity.current_uniq_constraints }}", {{ entity.current_uniq_constraints }}))
+    private class func _fetch<T: {{ entity.name }}>({{ entity.constraint_parameter }}, in context: NSManagedObjectContext) -> T? {
+        return T.findOrFetch(in: context, predicate: {{ entity.constraint_predicate }})
     }
 
-    private class func _fetchOrCreate<T: {{ entity.name }}>({{ entity.current_uniq_constraints }}: String, create: inout Bool, in context: NSManagedObjectContext) -> T {
-        guard let result = T.findOrFetch(in: context, predicate: Query.equal("{{ entity.current_uniq_constraints }}", {{ entity.current_uniq_constraints }})) else {
+    private class func _fetchOrCreate<T: {{ entity.name }}>({{ entity.constraint_parameter }}, create: inout Bool, in context: NSManagedObjectContext) -> T {
+        guard let result = T.findOrFetch(in: context, predicate: {{ entity.constraint_predicate }}) else {
             let o = T.insertObject(in: context)
+            #if entity.is_composite_constraint
+            #for current_uniq_constraint in entity.current_uniq_constraints
+            o.{{ current_uniq_constraint }} = {{ current_uniq_constraint }}
+            #endfor
+            #else
             o.{{ entity.current_uniq_constraints }} = {{ entity.current_uniq_constraints }}
+            #endif
             create = true
             return o
         }
@@ -213,7 +219,7 @@ extension {{ entity.name }} {
         # endif
         # endfor
 
-        guard let obj = {{ entity.name }}.fetch({{ entity.uniq_constraints_with_parent }}: {{ entity.uniq_constraints_with_parent }}, in: context) else {
+        guard let obj = {{ entity.name }}.fetch({{ entity.post_constraint_parameter }}, in: context) else {
             return false
         }
 
@@ -247,7 +253,11 @@ extension {{ entity.name }} {
         #endif
         {{ '' }}
         if changedValues().count > 0 {
+        #if entity.is_composite_constraint
+          log.info("[Gore] updated {{ entity.name }}[{{ entity.composite_constraint_log_info }}], changed: \(changedValues())")
+        #else
             log.info("[Gore] updated {{ entity.name }}{% if entity.uniq_constraints_with_parent %}[\({{ entity.uniq_constraints_with_parent }})]{% endif %}, changed: \(changedValues())")
+         #endif
         } else {
             // log.verbose("[Gore] updated nothing for {{ entity.name }}{% if entity.current_uniq_constraints %}[\({{ entity.current_uniq_constraints }})]{% endif %}")
         }

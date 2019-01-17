@@ -202,7 +202,11 @@ class Entity(UserInfo):
         self.parent_entity = entity.get('parentEntity')
         current_uniq_constraints = entity.find('uniquenessConstraints')
         if current_uniq_constraints:
-            self.current_uniq_constraints = current_uniq_constraints[0][0].get('value')
+            first_constraints = current_uniq_constraints[0]
+            if len(first_constraints) > 1:
+                self.current_uniq_constraints = [constraint.get('value') for constraint in first_constraints]
+            else:
+                self.current_uniq_constraints = current_uniq_constraints[0][0].get('value')
         if not current_uniq_constraints:
             for entry in self.user_info:
                 if entry['key'] == 'fake_constraint' and entry['value']:
@@ -215,6 +219,43 @@ class Entity(UserInfo):
                 {attributes}
             relationships: {relationships}
         """.format(name=self.name, attributes=self.attributes, relationships=self.relationships)
+
+    @LazyProperty
+    def is_composite_constraint(self):
+        return type(self.current_uniq_constraints) == list
+
+    @LazyProperty
+    def constraint_parameter(self):
+        if self.is_composite_constraint:
+            all = [name + ": String" for name in self.current_uniq_constraints]
+            return ', '.join(all)
+        else:
+            return self.current_uniq_constraints + ": String"
+
+    @LazyProperty
+    def post_constraint_parameter(self):
+        if self.is_composite_constraint:
+            all = [name + ": " + name for name in self.current_uniq_constraints]
+            return ', '.join(all)
+        else:
+            return self.uniq_constraints_with_parent + ": " + self.uniq_constraints_with_parent
+
+    @LazyProperty
+    def composite_constraint_log_info(self):
+        all = ["""\({name})""".format(name=name) for name in self.current_uniq_constraints]
+        return "_".join(all)
+
+    @LazyProperty
+    def constraint_predicate(self):
+        if self.is_composite_constraint:
+            all = ["""\({entity}.{constraint}) == %@""".format(entity=self.name, constraint=constraint) for constraint in self.current_uniq_constraints]
+            predicate = " AND ".join(all)
+            predicate = "\"" + predicate + "\""
+            p = [name for name in self.current_uniq_constraints]
+            predicate = predicate + ", " + ", ".join(p)
+            return """NSPredicate(format: {predicate})""".format(predicate=predicate)
+        else:
+            return """Query.equal("{constraint}", {constraint})""".format(constraint=self.current_uniq_constraints)
 
     @LazyProperty
     def uniq_constraints_with_parent(self):
