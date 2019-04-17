@@ -105,6 +105,7 @@ extension {{ entity.name }} {
         # if entity.uniq_constraints_with_parent
         // use identifier attribute to fetch first, if already exsit, just update it
         # for attribute in entity.all_attributes
+
         # if attribute.name == entity.uniq_constraints_with_parent
         if let {{ attribute.name }} = {{ attribute.json_value_expression }}, let obj = {{ entity.name }}.fetch({{ entity.uniq_constraints_with_parent }}: {{ entity.uniq_constraints_with_parent }}, in: context) {
             obj.update(from: json)
@@ -113,6 +114,24 @@ extension {{ entity.name }} {
         }
         # endif
         # endfor
+        # endif
+
+        # if entity.is_composite_constraint
+        let model: {{ entity.name }}? = {
+            #for attribute in entity.all_attributes
+            #for current_uniq_constraint in entity.current_uniq_constraints if attribute.name == current_uniq_constraint
+            guard let {{ attribute.name }} = {{ attribute.json_value_expression_for_check_null }} else {
+                return nil
+            }
+            #endfor
+            #endfor
+            return {{ entity.name }}.fetch({{ entity.post_constraint_parameter }}, in: context)
+        }()
+        if let obj = model {
+            obj.update(from: json)
+            configration?(obj, false)
+            return obj
+        } 
         # endif
 
         return create(from: json, in: context) {
