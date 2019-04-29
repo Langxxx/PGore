@@ -1,7 +1,7 @@
 Pod::Spec.new do |s|
 
   s.name         = "PGore"
-  s.version      = "0.3.0"
+  s.version      = "0.3.1"
   s.summary      = "PGore"
 
   s.homepage     = "https://github.com/langxxx/PGore"
